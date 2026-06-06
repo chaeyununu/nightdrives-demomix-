@@ -1,13 +1,102 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>nightdrive</title>
-  <meta name="description" content="A cinematic night drive — coastal road, infinite lights, metropolitan horizon.">
+
+  <!-- SEO: Google / Bing 검색용 핵심 정보 -->
+  <title>채유누누의 밤 드라이브! | chaeyununu</title>
+
+  <meta name="description" content="채유누누 chaeyununu가 만든 인터랙티브 밤 드라이브 웹사이트. 도시의 빛, 바다 도로, 해안 루트, 몽환적인 움직임이 흐르는 cinematic night drive web artwork.">
+  <meta name="author" content="chaeyununu">
+  <meta name="creator" content="chaeyununu">
+  <meta name="publisher" content="chaeyununu">
+  <meta name="keywords" content="chaeyununu, 채유누누, 채유누누의 밤 드라이브, 밤 드라이브, night drive, nightdrive, cinematic night drive, interactive website, GitHub Pages, coastal road, ocean drive, city lights">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="googlebot" content="index, follow">
+  <meta name="application-name" content="채유누누의 밤 드라이브!">
+
+  <!-- 대표 주소 -->
+  <link rel="canonical" href="https://chaeyununu.github.io/nightdrives-demomix-/">
+
+  <!-- Google Search Console 인증 태그가 있으면 아래 content를 네 코드로 바꿔서 사용 -->
+  <!-- <meta name="google-site-verification" content="여기에_구글_인증코드"> -->
+
+  <!-- Open Graph: 카톡/인스타/디스코드/검색 미리보기용 -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="채유누누의 밤 드라이브!">
+  <meta property="og:title" content="채유누누의 밤 드라이브! | chaeyununu">
+  <meta property="og:description" content="채유누누 chaeyununu가 만든 인터랙티브 밤 드라이브 웹사이트. 도시의 빛, 바다 도로, 해안 루트, 몽환적인 움직임이 흐르는 디지털 드라이브 작품.">
+  <meta property="og:url" content="https://chaeyununu.github.io/nightdrives-demomix-/">
+  <meta property="og:locale" content="ko_KR">
+
+  <!-- Twitter / X 미리보기 -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="채유누누의 밤 드라이브! | chaeyununu">
+  <meta name="twitter:description" content="채유누누 chaeyununu가 만든 인터랙티브 밤 드라이브 웹사이트. 도시의 빛과 해안 도로가 흐르는 cinematic night drive.">
+
+  <!-- CSS -->
   <link rel="stylesheet" href="css/style.css?v=20260525-mode1-skyspace">
+
+  <!-- 구조화 데이터: Google/Bing이 이 사이트를 chaeyununu 작업물로 이해하게 하는 신호 -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "채유누누의 밤 드라이브!",
+    "alternateName": [
+      "chaeyununu",
+      "채유누누",
+      "chaeyununu night drive",
+      "nightdrive",
+      "채유누누의 밤 드라이브"
+    ],
+    "url": "https://chaeyununu.github.io/nightdrives-demomix-/",
+    "description": "채유누누 chaeyununu가 만든 인터랙티브 밤 드라이브 웹사이트. 도시의 빛, 바다 도로, 해안 루트, 몽환적인 움직임이 흐르는 cinematic night drive web artwork.",
+    "creator": {
+      "@type": "Person",
+      "name": "chaeyununu",
+      "url": "https://github.com/chaeyununu"
+    },
+    "publisher": {
+      "@type": "Person",
+      "name": "chaeyununu"
+    },
+    "inLanguage": "ko-KR",
+    "keywords": "chaeyununu, 채유누누, 채유누누의 밤 드라이브, night drive, nightdrive, cinematic website, interactive website"
+  }
+  </script>
+
+  <style>
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
 </head>
+
 <body>
+
+  <!-- 검색엔진/스크린리더용 실제 본문 텍스트 -->
+  <header class="sr-only">
+    <h1>채유누누의 밤 드라이브! | chaeyununu</h1>
+    <p>
+      채유누누 chaeyununu가 만든 인터랙티브 밤 드라이브 웹사이트입니다.
+      이 사이트는 도시의 빛, 바다 도로, 해안 루트, 야간 주행 감성,
+      몽환적인 움직임을 담은 cinematic night drive web artwork입니다.
+    </p>
+    <p>
+      chaeyununu night drive, 채유누누의 밤 드라이브, nightdrive,
+      interactive website, GitHub Pages, coastal road, ocean drive, city lights.
+    </p>
+  </header>
 
   <!-- Loading veil -->
   <div class="loading-veil"><div class="loading-dot"></div></div>
@@ -37,42 +126,45 @@
   <div class="ui-layer">
 
     <nav class="nav">
-      <div class="nav__logo">nd</div>
+      <div class="nav__logo" aria-label="채유누누의 밤 드라이브">cy</div>
       <div class="nav__links">
         <a href="saved.html" class="nav__link">saved</a>
       </div>
     </nav>
 
-    <div class="hero">
-      <div class="hero__sub">coastal route &nbsp;—&nbsp; night corridor</div>
+    <main class="hero">
+      <div class="hero__sub">chaeyununu &nbsp;—&nbsp; coastal route &nbsp;—&nbsp; night corridor</div>
       <div class="hero__actions">
         <button id="music-btn" class="btn-engine">start engine</button>
       </div>
-    </div>
+    </main>
 
     <div class="mode-switcher">
       <button class="mode-btn active" data-mode="moonlit">Moonlit Coast</button>
-      <button class="mode-btn"        data-mode="metropolis">Metropolis Glow</button>
-      <button class="mode-btn"        data-mode="cyber">Cyber Harbor</button>
-      <button class="mode-btn"        data-mode="midnight">After Midnight</button>
+      <button class="mode-btn" data-mode="metropolis">Metropolis Glow</button>
+      <button class="mode-btn" data-mode="cyber">Cyber Harbor</button>
+      <button class="mode-btn" data-mode="midnight">After Midnight</button>
     </div>
 
     <div class="bottom-bar">
       <span>— 120 km/h</span>
       <span id="mode-label">Moonlit Coast</span>
-      <span>35.2°N · coastal route</span>
+      <span>chaeyununu · 35.2°N · coastal route</span>
     </div>
 
   </div>
 
-  <style>.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}</style>
-  <span class="sr-only">nightdrive</span>
+  <footer class="sr-only">
+    채유누누의 밤 드라이브! — by chaeyununu.
+    chaeyununu가 만든 밤 드라이브 인터랙티브 웹사이트.
+  </footer>
 
   <!-- InfiniteLights stack (provides global THREE + POSTPROCESSING) -->
   <script src="references/infinite-lights-demo/js/three.min.js"></script>
   <script src="references/infinite-lights-demo/js/postprocessing.min.js"></script>
   <script src="references/infinite-lights-demo/js/InfiniteLights.js"></script>
   <script src="references/infinite-lights-demo/js/Distortions.js"></script>
+
   <!-- App scripts -->
   <script src="js/audio.js?v=20260525-104922631"></script>
   <script src="js/texttrail.js"></script>
