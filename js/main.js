@@ -478,6 +478,7 @@ function setMode(mode) {
   var roadEl = document.getElementById('road-bg');
 
   if (textTrail) textTrail.setColor(m.trailCol[0], m.trailCol[1], m.trailCol[2]);
+  if (textTrail) textTrail.setText(mode === 'midnight' ? 'I like your voice,\nwhen we date' : 'nightdrive');
   if (trailWrap) trailWrap.style.opacity = mode === 'cyber' ? '0' : '1';
   if (roadEl) {
     roadEl.classList.toggle('road-bg--moonlit', mode === 'moonlit');
