@@ -32,6 +32,10 @@
   var PROP_ROUTE_Z_B = -68;
   var HEAVY_ROUTE_FIRST = 3;
   var HEAVY_ROUTE_EVERY = 3;
+  var LEFT_WALL_DESKTOP_NUDGE = 0.08;
+  var LEFT_WALL_NARROW_ASPECT_START = 1.1;
+  var LEFT_WALL_NARROW_ASPECT_FULL = 0.65;
+  var LEFT_WALL_NARROW_EXTRA_INSET = 0.5;
 
   var VORONOI = [
     'vec3 hash(vec3 p){',
@@ -204,6 +208,7 @@
     this._floats = [];
     this._sideObjects = [];
     this._poolSegments = [];
+    this._leftWallMeshes = [];
     this._poolPropCache = {};
     this._propSlots = [];
     this._propRouteState = 'intro';
@@ -225,6 +230,7 @@
     this._fpsAvg = 60;
 
     this._buildScene();
+    this._applyResponsiveLeftWall(window.innerWidth / window.innerHeight);
     this._preloadAllProps();
     this._maybePreloadNextHeavy();
 
@@ -275,8 +281,9 @@
         mesh.castShadow = false;
         mesh.receiveShadow = false;
         if (mat === leftWallMat) {
-          mesh.position.x += 0.08;
+          mesh.userData.leftWallBaseX = x;
           mesh.renderOrder = 30;
+          self._leftWallMeshes.push(mesh);
         }
         group.add(mesh);
       }
@@ -419,6 +426,20 @@
     mesh.position.set(0, 3.05, -24);
     mesh.renderOrder = 2;
     this._sc.add(mesh);
+  };
+
+  AquaCityBg.prototype._getLeftWallInset = function (aspect) {
+    var t = (LEFT_WALL_NARROW_ASPECT_START - aspect) /
+      (LEFT_WALL_NARROW_ASPECT_START - LEFT_WALL_NARROW_ASPECT_FULL);
+    t = Math.max(0, Math.min(1, t));
+    return LEFT_WALL_DESKTOP_NUDGE + t * LEFT_WALL_NARROW_EXTRA_INSET;
+  };
+
+  AquaCityBg.prototype._applyResponsiveLeftWall = function (aspect) {
+    var inset = this._getLeftWallInset(aspect);
+    this._leftWallMeshes.forEach(function (mesh) {
+      mesh.position.x = mesh.userData.leftWallBaseX + inset;
+    });
   };
 
   function deskinRoot(root) {
@@ -915,8 +936,10 @@
   AquaCityBg.prototype._resize = function () {
     var w = window.innerWidth;
     var h = window.innerHeight;
-    this._cam.aspect = w / h;
+    var aspect = w / h;
+    this._cam.aspect = aspect;
     this._cam.updateProjectionMatrix();
+    this._applyResponsiveLeftWall(aspect);
     this._ren.setSize(w, h);
   };
 
