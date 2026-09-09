@@ -57,11 +57,56 @@ var currentMode = 'moonlit';
 var lastTick    = 0;
 var roadMotionActive = false;
 var roadSwitchToken = 0;
-var mode1RoadTint = {
-  roadSky: 0x78bad6,
-  islandSky: 0x9ed0e4,
-  fogSky: 0xb9e4f4,
-};
+
+/* Mode 4 / pool text sequence — keeps the existing TextTrail look. */
+var DEFAULT_TRAIL_TEXT = 'nightdrive';
+var POOL_TRAIL_LINES = [
+  'I like your voice',
+  'I know I change so fast _moodswings crazy',
+  'But you too..ㅠㅠㅠ',
+  'When we date?'
+];
+var poolTrailTimers = [];
+var poolTrailToken = 0;
+
+function clearPoolTrailTimers() {
+  poolTrailToken += 1;
+  for (var i = 0; i < poolTrailTimers.length; i++) {
+    clearTimeout(poolTrailTimers[i]);
+  }
+  poolTrailTimers = [];
+}
+
+function resetTrailText() {
+  if (textTrail) textTrail.setText(DEFAULT_TRAIL_TEXT);
+}
+
+function startPoolTrailSequence() {
+  clearPoolTrailTimers();
+  resetTrailText();
+
+  var token = poolTrailToken;
+  var trailWrap = document.getElementById('text-trail-wrap');
+  var firstDelay = 1100;  // enter pool, breathe for a moment, then begin
+  var lineGap = 3600;     // each sentence gets its own beat
+  var fadeOutMs = 760;
+
+  POOL_TRAIL_LINES.forEach(function(line, index) {
+    var startAt = firstDelay + index * lineGap;
+
+    poolTrailTimers.push(setTimeout(function() {
+      if (token !== poolTrailToken || currentMode !== 'midnight' || !textTrail) return;
+
+      if (trailWrap) trailWrap.style.opacity = '0';
+
+      poolTrailTimers.push(setTimeout(function() {
+        if (token !== poolTrailToken || currentMode !== 'midnight' || !textTrail) return;
+        textTrail.setText(line);
+        if (trailWrap) trailWrap.style.opacity = '1';
+      }, fadeOutMs));
+    }, startAt));
+  });
+}
 
 var ROAD_PRESETS = {
   moonlit: {
@@ -249,43 +294,6 @@ function setRoadMotion(active) {
   applyRoadMotion(incomingRoadApp);
 }
 
-function lerpHexColor(a, b, t) {
-  var ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
-  var br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
-  var rr = Math.round(ar + (br - ar) * t);
-  var rg = Math.round(ag + (bg - ag) * t);
-  var rb = Math.round(ab + (bb - ab) * t);
-  return (rr << 16) | (rg << 8) | rb;
-}
-
-function setMeshUniformColor(mesh, uniformName, color) {
-  var mat = mesh && mesh.material;
-  var uniform = mat && mat.uniforms && mat.uniforms[uniformName];
-  if (uniform && uniform.value && uniform.value.setHex) uniform.value.setHex(color);
-}
-
-function applyMode1RoadTint() {
-  if (currentMode !== 'moonlit' || !roadApp || !roadApp.road || !skySpaceBg) return;
-  var blend = skySpaceBg.getSpaceBlend ? skySpaceBg.getSpaceBlend() : 0;
-  var colors = ROAD_PRESETS.moonlit.colors;
-  var roadColor = lerpHexColor(mode1RoadTint.roadSky, colors.roadColor, blend);
-  var islandColor = lerpHexColor(mode1RoadTint.islandSky, colors.islandColor, blend);
-  var fogColor = lerpHexColor(mode1RoadTint.fogSky, colors.background, blend);
-
-  setMeshUniformColor(roadApp.road.leftRoadWay, 'uColor', roadColor);
-  setMeshUniformColor(roadApp.road.rightRoadWay, 'uColor', roadColor);
-  setMeshUniformColor(roadApp.road.island, 'uColor', islandColor);
-  if (roadApp.scene && roadApp.scene.fog) roadApp.scene.fog.color.setHex(fogColor);
-  if (roadApp.fogUniforms && roadApp.fogUniforms.fogColor) {
-    roadApp.fogUniforms.fogColor.value.setHex(fogColor);
-  }
-  if (roadApp.renderer && roadApp.renderer.setClearColor) {
-    roadApp.renderer.setClearColor(fogColor, 1);
-  }
-  var roadEl = document.getElementById('road-bg');
-  if (roadEl) roadEl.style.setProperty('--mode1-road-sky-wash', (1 - blend).toFixed(3));
-}
-
 function createRoadApp(mode, roadEl, active) {
   var app = new App(roadEl, buildRoadOptions(mode));
   app.renderer.domElement.className = 'road-canvas road-canvas--' + mode;
@@ -356,7 +364,6 @@ function rafTick(now) {
   } else {
     if (skySpaceBg) skySpaceBg.tick(dt);
   }
-  applyMode1RoadTint();
   if (speedLayer) speedLayer.tick(dt);
 }
 
@@ -366,7 +373,6 @@ function init() {
   /* Road (InfiniteLights center corridor) */
   var roadEl = document.getElementById('road-bg');
   if (roadEl) {
-    roadEl.classList.toggle('road-bg--moonlit', currentMode === 'moonlit');
     try {
       var initialMode = currentMode;
       var initialRoadApp = createRoadApp(initialMode, roadEl, true);
@@ -481,6 +487,11 @@ function init() {
 /* ── Set mode ───────────────────────────────────────────── */
 function setMode(mode) {
   if (!MODES[mode]) return;
+
+  /* Stop any old pool sentence timers before changing chapters. */
+  clearPoolTrailTimers();
+  resetTrailText();
+
   currentMode = mode;
   var m = MODES[mode];
   var trailWrap = document.getElementById('text-trail-wrap');
@@ -488,11 +499,12 @@ function setMode(mode) {
 
   if (textTrail) textTrail.setColor(m.trailCol[0], m.trailCol[1], m.trailCol[2]);
   if (trailWrap) trailWrap.style.opacity = mode === 'cyber' ? '0' : '1';
+
+  /* Chapter 4 / pool: gently replace the big "nightdrive" trail text, one line at a time. */
+  if (mode === 'midnight') startPoolTrailSequence();
   if (roadEl) {
-    roadEl.classList.toggle('road-bg--moonlit', mode === 'moonlit');
     roadEl.classList.toggle('road-bg--pool-mode', mode === 'midnight');
     roadEl.classList.toggle('road-bg--rebecca-mode', mode === 'metropolis');
-    if (mode !== 'moonlit') roadEl.style.setProperty('--mode1-road-sky-wash', '0');
   }
   document.documentElement.style.setProperty('--c-glow-rgb', m.glowRGB);
   switchRoadMode(mode);
