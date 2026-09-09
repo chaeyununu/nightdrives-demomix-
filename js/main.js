@@ -33,9 +33,9 @@ var MODES = {
   },
   midnight: {
     label:    'After Midnight',
-    glowRGB:  '4, 18, 15',
+    glowRGB:  '4, 8, 18',
     trailCol: [0.52, 0.68, 0.88],
-    roadBg:   0x010a09,
+    roadBg:   0x010204,
     leftCars: [0xaa1808, 0x880e06, 0xbb1a0a],
     rightCars:[0x485868, 0x384858, 0x283848],
     sticks:   0x0a1422,
@@ -57,6 +57,11 @@ var currentMode = 'moonlit';
 var lastTick    = 0;
 var roadMotionActive = false;
 var roadSwitchToken = 0;
+var mode1RoadTint = {
+  roadSky: 0x78bad6,
+  islandSky: 0x9ed0e4,
+  fogSky: 0xb9e4f4,
+};
 
 var ROAD_PRESETS = {
   moonlit: {
@@ -189,11 +194,11 @@ var ROAD_PRESETS = {
     carShiftX: [-0.2, 0.2],
     carFloorSeparation: [0.05, 1],
     colors: {
-      roadColor: 0x050f0e,
-      islandColor: 0x061413,
-      background: 0x0b2624,
-      shoulderLines: 0x102220,
-      brokenLines: 0x102220,
+      roadColor: 0x080808,
+      islandColor: 0x0a0a0a,
+      background: 0x2a8fc2,
+      shoulderLines: 0x131318,
+      brokenLines: 0x131318,
       leftCars: [0xE2173C, 0x841010, 0xF23D3D],
       rightCars: [0xffffff, 0x7686BF, 0x1338B5],
       sticks: 0xDCE0EE,
@@ -217,18 +222,9 @@ function buildRoadOptions(mode) {
 function setRoadCanvasState(app, active) {
   if (!app || !app.renderer) return;
   var canvas = app.renderer.domElement;
-
-  var isCyberLike =
-    canvas.classList.contains('road-canvas--cyber') ||
-    canvas.classList.contains('road-canvas--metropolis');
-
-  var isPoolMode = canvas.classList.contains('road-canvas--midnight');
-
   canvas.style.opacity = active
-    ? (isPoolMode ? '0.62' : (isCyberLike ? '0.78' : '1'))
+    ? (canvas.classList.contains('road-canvas--cyber') || canvas.classList.contains('road-canvas--metropolis') ? '0.78' : '1')
     : '0';
-
-  canvas.style.mixBlendMode = active && isPoolMode ? 'screen' : 'normal';
   canvas.style.pointerEvents = active ? 'auto' : 'none';
 }
 
@@ -242,6 +238,43 @@ function setRoadMotion(active) {
   roadMotionActive = active;
   applyRoadMotion(roadApp);
   applyRoadMotion(incomingRoadApp);
+}
+
+function lerpHexColor(a, b, t) {
+  var ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+  var br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+  var rr = Math.round(ar + (br - ar) * t);
+  var rg = Math.round(ag + (bg - ag) * t);
+  var rb = Math.round(ab + (bb - ab) * t);
+  return (rr << 16) | (rg << 8) | rb;
+}
+
+function setMeshUniformColor(mesh, uniformName, color) {
+  var mat = mesh && mesh.material;
+  var uniform = mat && mat.uniforms && mat.uniforms[uniformName];
+  if (uniform && uniform.value && uniform.value.setHex) uniform.value.setHex(color);
+}
+
+function applyMode1RoadTint() {
+  if (currentMode !== 'moonlit' || !roadApp || !roadApp.road || !skySpaceBg) return;
+  var blend = skySpaceBg.getSpaceBlend ? skySpaceBg.getSpaceBlend() : 0;
+  var colors = ROAD_PRESETS.moonlit.colors;
+  var roadColor = lerpHexColor(mode1RoadTint.roadSky, colors.roadColor, blend);
+  var islandColor = lerpHexColor(mode1RoadTint.islandSky, colors.islandColor, blend);
+  var fogColor = lerpHexColor(mode1RoadTint.fogSky, colors.background, blend);
+
+  setMeshUniformColor(roadApp.road.leftRoadWay, 'uColor', roadColor);
+  setMeshUniformColor(roadApp.road.rightRoadWay, 'uColor', roadColor);
+  setMeshUniformColor(roadApp.road.island, 'uColor', islandColor);
+  if (roadApp.scene && roadApp.scene.fog) roadApp.scene.fog.color.setHex(fogColor);
+  if (roadApp.fogUniforms && roadApp.fogUniforms.fogColor) {
+    roadApp.fogUniforms.fogColor.value.setHex(fogColor);
+  }
+  if (roadApp.renderer && roadApp.renderer.setClearColor) {
+    roadApp.renderer.setClearColor(fogColor, 1);
+  }
+  var roadEl = document.getElementById('road-bg');
+  if (roadEl) roadEl.style.setProperty('--mode1-road-sky-wash', (1 - blend).toFixed(3));
 }
 
 function createRoadApp(mode, roadEl, active) {
@@ -314,6 +347,7 @@ function rafTick(now) {
   } else {
     if (skySpaceBg) skySpaceBg.tick(dt);
   }
+  applyMode1RoadTint();
   if (speedLayer) speedLayer.tick(dt);
 }
 
@@ -323,6 +357,7 @@ function init() {
   /* Road (InfiniteLights center corridor) */
   var roadEl = document.getElementById('road-bg');
   if (roadEl) {
+    roadEl.classList.toggle('road-bg--moonlit', currentMode === 'moonlit');
     try {
       var initialMode = currentMode;
       var initialRoadApp = createRoadApp(initialMode, roadEl, true);
@@ -445,8 +480,10 @@ function setMode(mode) {
   if (textTrail) textTrail.setColor(m.trailCol[0], m.trailCol[1], m.trailCol[2]);
   if (trailWrap) trailWrap.style.opacity = mode === 'cyber' ? '0' : '1';
   if (roadEl) {
+    roadEl.classList.toggle('road-bg--moonlit', mode === 'moonlit');
     roadEl.classList.toggle('road-bg--pool-mode', mode === 'midnight');
     roadEl.classList.toggle('road-bg--rebecca-mode', mode === 'metropolis');
+    if (mode !== 'moonlit') roadEl.style.setProperty('--mode1-road-sky-wash', '0');
   }
   document.documentElement.style.setProperty('--c-glow-rgb', m.glowRGB);
   switchRoadMode(mode);
