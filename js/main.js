@@ -58,56 +58,6 @@ var lastTick    = 0;
 var roadMotionActive = false;
 var roadSwitchToken = 0;
 
-/* Mode 4 / pool text sequence — keeps the existing TextTrail look. */
-var DEFAULT_TRAIL_TEXT = 'nightdrive';
-var POOL_TRAIL_LINES = [
-  'I like your voice',
-  'I know I change so fast _moodswings crazy',
-  'But you too..ㅠㅠㅠ',
-  'When we date?'
-];
-var poolTrailTimers = [];
-var poolTrailToken = 0;
-
-function clearPoolTrailTimers() {
-  poolTrailToken += 1;
-  for (var i = 0; i < poolTrailTimers.length; i++) {
-    clearTimeout(poolTrailTimers[i]);
-  }
-  poolTrailTimers = [];
-}
-
-function resetTrailText() {
-  if (textTrail) textTrail.setText(DEFAULT_TRAIL_TEXT);
-}
-
-function startPoolTrailSequence() {
-  clearPoolTrailTimers();
-  resetTrailText();
-
-  var token = poolTrailToken;
-  var trailWrap = document.getElementById('text-trail-wrap');
-  var firstDelay = 1100;  // enter pool, breathe for a moment, then begin
-  var lineGap = 3600;     // each sentence gets its own beat
-  var fadeOutMs = 760;
-
-  POOL_TRAIL_LINES.forEach(function(line, index) {
-    var startAt = firstDelay + index * lineGap;
-
-    poolTrailTimers.push(setTimeout(function() {
-      if (token !== poolTrailToken || currentMode !== 'midnight' || !textTrail) return;
-
-      if (trailWrap) trailWrap.style.opacity = '0';
-
-      poolTrailTimers.push(setTimeout(function() {
-        if (token !== poolTrailToken || currentMode !== 'midnight' || !textTrail) return;
-        textTrail.setText(line);
-        if (trailWrap) trailWrap.style.opacity = '1';
-      }, fadeOutMs));
-    }, startAt));
-  });
-}
-
 var ROAD_PRESETS = {
   moonlit: {
     distortion: function() { return LongRaceDistortion; },
@@ -487,11 +437,6 @@ function init() {
 /* ── Set mode ───────────────────────────────────────────── */
 function setMode(mode) {
   if (!MODES[mode]) return;
-
-  /* Stop any old pool sentence timers before changing chapters. */
-  clearPoolTrailTimers();
-  resetTrailText();
-
   currentMode = mode;
   var m = MODES[mode];
   var trailWrap = document.getElementById('text-trail-wrap');
@@ -499,9 +444,6 @@ function setMode(mode) {
 
   if (textTrail) textTrail.setColor(m.trailCol[0], m.trailCol[1], m.trailCol[2]);
   if (trailWrap) trailWrap.style.opacity = mode === 'cyber' ? '0' : '1';
-
-  /* Chapter 4 / pool: gently replace the big "nightdrive" trail text, one line at a time. */
-  if (mode === 'midnight') startPoolTrailSequence();
   if (roadEl) {
     roadEl.classList.toggle('road-bg--pool-mode', mode === 'midnight');
     roadEl.classList.toggle('road-bg--rebecca-mode', mode === 'metropolis');
