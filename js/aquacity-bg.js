@@ -30,8 +30,7 @@
   var PROP_ROUTE_EMPTY_DISTANCE = 1900;
   var PROP_ROUTE_Z_A = -42;
   var PROP_ROUTE_Z_B = -68;
-  var HEAVY_ROUTE_FIRST = 3;
-  var HEAVY_ROUTE_EVERY = 3;
+  var HEAVY_ROUTE_EVERY = 11;
 
   var VORONOI = [
     'vec3 hash(vec3 p){',
@@ -213,20 +212,12 @@
     this._propEmptyRemaining = 0;
     this._propLoadToken = 0;
     this._propLoading = false;
-    this._speed = 5.8;
     this._heavyLoadToken = 0;
     this._heavyFailedKeys = {};
     this._heavyRouteActive = false;
-    this._heavyLoadingKey = null;
-    this._heavyPaused = false;
-    this._heavyPausedUntil = 0;
-    this._fpsFrames = 0;
-    this._fpsAccum = 0;
-    this._fpsAvg = 60;
 
     this._buildScene();
     this._preloadAllProps();
-    this._maybePreloadNextHeavy();
 
     var self = this;
     window.addEventListener('resize', function () { self._resize(); });
@@ -235,15 +226,6 @@
   AquaCityBg.prototype._buildScene = function () {
     var self = this;
     var tileMat = makeMat({ color: 0xffffff, roughness: 0.0 });
-    var leftWallMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      side: THREE.DoubleSide,
-      fog: false,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -8,
-      polygonOffsetUnits: -8
-    });
 
     var texLoader = new THREE.TextureLoader();
     [
@@ -265,24 +247,20 @@
       group.position.z = z;
       self._sc.add(group);
 
-      function segFloor(x, y, localZ, rx, ry, sx, sy, mat) {
+      function segFloor(x, y, localZ, rx, ry, sx, sy) {
         var geo = new THREE.PlaneGeometry(sx, sy, 1, 1);
         addUv2(geo);
-        var mesh = new THREE.Mesh(geo, mat || tileMat);
+        var mesh = new THREE.Mesh(geo, tileMat);
         mesh.position.set(x, y, localZ);
         mesh.rotation.x = rx || 0;
         mesh.rotation.y = ry || 0;
         mesh.castShadow = false;
         mesh.receiveShadow = false;
-        if (mat === leftWallMat) {
-          mesh.position.x += 0.08;
-          mesh.renderOrder = 30;
-        }
         group.add(mesh);
       }
 
       segFloor(0, 0, 0, -Math.PI / 2, 0, 11, 8);
-      segFloor(-4.35, 3.05, 0, 0, Math.PI / 2, 8, 6.1, leftWallMat);
+      segFloor(-4.35, 3.05, 0, 0, Math.PI / 2, 8, 6.1);
       segFloor(4.35, 3.05, 0, 0, -Math.PI / 2, 8, 6.1);
 
       self._poolSegments.push({
@@ -381,44 +359,6 @@
     caustic.rotation.x = -Math.PI / 2;
     caustic.renderOrder = 10;
     this._sc.add(caustic);
-    this._buildDepthGlow();
-  };
-
-  AquaCityBg.prototype._buildDepthGlow = function () {
-    this._depthGlowMat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-      },
-      vertexShader: [
-        'varying vec2 vUv;',
-        'void main(){',
-        '  vUv = uv;',
-        '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);',
-        '}'
-      ].join('\n'),
-      fragmentShader: [
-        'uniform float uTime;',
-        'varying vec2 vUv;',
-        'void main(){',
-        '  vec2 c = (vUv - 0.5) * vec2(1.0, 1.25);',
-        '  float d = length(c);',
-        '  float g = pow(clamp(1.0 - d * 1.85, 0.0, 1.0), 1.75);',
-        '  float pulse = 0.90 + 0.10 * sin(uTime * 0.48);',
-        '  vec3 col = mix(vec3(0.26,0.76,0.91), vec3(0.52,0.96,0.96), g * g);',
-        '  gl_FragColor = vec4(col, g * 0.36 * pulse);',
-        '}'
-      ].join('\n'),
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-
-    var geo = new THREE.PlaneGeometry(8.5, 6.6);
-    var mesh = new THREE.Mesh(geo, this._depthGlowMat);
-    mesh.position.set(0, 3.05, -24);
-    mesh.renderOrder = 2;
-    this._sc.add(mesh);
   };
 
   function deskinRoot(root) {
@@ -561,16 +501,11 @@
   AquaCityBg.prototype._pickPoolPropPairFiles = function () {
     var lightCount = POOL_PROP_FILES.length;
     var lightStart = this._propRouteIndex % lightCount;
-    if (this._heavyPaused && this._propRouteIndex >= this._heavyPausedUntil) {
-      this._heavyPaused = false;
-    }
-    var idx = this._propRouteIndex;
-    if (!this._heavyPaused &&
-        HEAVY_PROP_FILES.length &&
-        idx >= HEAVY_ROUTE_FIRST &&
-        (idx === HEAVY_ROUTE_FIRST || (idx - HEAVY_ROUTE_FIRST) % HEAVY_ROUTE_EVERY === 0)) {
-      var hCount = (idx - HEAVY_ROUTE_FIRST) / HEAVY_ROUTE_EVERY;
-      var hFile = HEAVY_PROP_FILES[hCount % HEAVY_PROP_FILES.length];
+    if (HEAVY_ROUTE_EVERY > 0 &&
+        this._propRouteIndex > 0 &&
+        this._propRouteIndex % HEAVY_ROUTE_EVERY === 0 &&
+        HEAVY_PROP_FILES.length) {
+      var hFile = HEAVY_PROP_FILES[(this._propRouteIndex / HEAVY_ROUTE_EVERY - 1) % HEAVY_PROP_FILES.length];
       var hKey = HEAVY_PROP_BASE + hFile;
       if (this._poolPropCache[hKey]) {
         return [propSpec(hFile, true)];
@@ -681,36 +616,18 @@
     if (!HEAVY_ROUTE_EVERY || !HEAVY_PROP_FILES.length) return;
     if (typeof THREE.GLTFLoader === 'undefined') return;
     var nextIndex = this._propRouteIndex + 1;
-    var nextHeavy;
-    if (nextIndex <= HEAVY_ROUTE_FIRST) {
-      nextHeavy = HEAVY_ROUTE_FIRST;
-    } else {
-      var off = nextIndex - HEAVY_ROUTE_FIRST;
-      var rem = off % HEAVY_ROUTE_EVERY;
-      nextHeavy = rem === 0 ? nextIndex : nextIndex + (HEAVY_ROUTE_EVERY - rem);
-    }
-    if (nextHeavy - nextIndex > 2) return;
-    var hCount = (nextHeavy - HEAVY_ROUTE_FIRST) / HEAVY_ROUTE_EVERY;
-    var hFile = HEAVY_PROP_FILES[hCount % HEAVY_PROP_FILES.length];
+    if (nextIndex % HEAVY_ROUTE_EVERY !== 0) return;
+    var hFile = HEAVY_PROP_FILES[(nextIndex / HEAVY_ROUTE_EVERY - 1) % HEAVY_PROP_FILES.length];
     var hKey = HEAVY_PROP_BASE + hFile;
     if (this._poolPropCache[hKey] || this._heavyFailedKeys[hKey]) return;
-    if (this._heavyLoadingKey === hKey) return;
-    this._heavyLoadingKey = hKey;
     var self = this;
     var token = ++this._heavyLoadToken;
     new THREE.GLTFLoader().load(
       HEAVY_PROP_BASE + encodeURIComponent(hFile),
       function (gltf) {
-        if (token !== self._heavyLoadToken) {
-          if (self._heavyLoadingKey === hKey) self._heavyLoadingKey = null;
-          return;
-        }
+        if (token !== self._heavyLoadToken) return;
         var root = gltf.scene || gltf.scenes[0];
-        if (!root) {
-          self._heavyLoadingKey = null;
-          self._heavyFailedKeys[hKey] = true;
-          return;
-        }
+        if (!root) { self._heavyFailedKeys[hKey] = true; return; }
         root.traverse(function (node) {
           if (!node.isMesh) return;
           node.castShadow = false;
@@ -729,15 +646,11 @@
         var normalized = new THREE.Group();
         root.position.sub(center);
         normalized.add(root);
-        self._heavyLoadingKey = null;
         self._poolPropCache[hKey] = { file: hFile, heavy: true, root: normalized, maxDim: maxDim };
         self._warmupGPU(normalized);
       },
       undefined,
-      function () {
-        if (self._heavyLoadingKey === hKey) self._heavyLoadingKey = null;
-        self._heavyFailedKeys[hKey] = true;
-      }
+      function () { self._heavyFailedKeys[hKey] = true; }
     );
   };
 
@@ -765,8 +678,6 @@
     this._propLoading = false;
     this._propLoadToken += 1;
     this._heavyLoadToken += 1;
-    this._heavyLoadingKey = null;
-    this._heavyPaused = false;
     var wasHeavy = this._heavyRouteActive;
     var hEntry = wasHeavy && this._propRoutePair && this._propRoutePair[0];
     this._heavyRouteActive = false;
@@ -788,20 +699,8 @@
 
   AquaCityBg.prototype.tick = function (dt) {
     this._time += dt;
-    this._iv += (this._target - this._iv) * Math.min(dt * (this._target > this._iv ? 1.6 : 0.85), 1);
+    this._iv += (this._target - this._iv) * Math.min(dt * 2.5, 1);
     if (!this._active && this._iv < 0.01) return;
-
-    this._fpsFrames++;
-    this._fpsAccum += dt;
-    if (this._fpsAccum >= 2.0) {
-      this._fpsAvg = this._fpsFrames / this._fpsAccum;
-      this._fpsFrames = 0;
-      this._fpsAccum = 0;
-      if (this._fpsAvg < 42 && !this._heavyPaused) {
-        this._heavyPaused = true;
-        this._heavyPausedUntil = this._propRouteIndex + 5;
-      }
-    }
 
     var t = this._time;
     var cx = Math.sin(t * 0.18) * (0.35 + this._iv * 0.22);
@@ -816,9 +715,7 @@
       f.obj.rotation.y += dt * f.rot;
     });
 
-    var speedTarget = 5.8 + this._iv * 22.0;
-    this._speed += (speedTarget - this._speed) * Math.min(dt * 1.8, 1);
-    var sideSpeed = this._speed;
+    var sideSpeed = 5.8 + this._iv * 22.0;
     var shake = 0.035 + this._iv * 0.18;
 
     this._poolSegments.forEach(function (p) {
@@ -906,8 +803,6 @@
 
     this._causticMat.uniforms.uTime.value = t * (1 + this._iv * 0.35);
     this._causticMat.uniforms.uOpacity.value = 0.42 + this._iv * 0.16;
-    if (this._waterMat) this._waterMat.uniforms.uTime.value = t;
-    if (this._depthGlowMat) this._depthGlowMat.uniforms.uTime.value = t;
 
     this._ren.render(this._sc, this._cam);
   };
@@ -922,4 +817,3 @@
 
   global.AquaCityBg = AquaCityBg;
 })(window);
- 
