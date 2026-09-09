@@ -30,7 +30,8 @@
   var PROP_ROUTE_EMPTY_DISTANCE = 1900;
   var PROP_ROUTE_Z_A = -42;
   var PROP_ROUTE_Z_B = -68;
-  var HEAVY_ROUTE_EVERY = 11;
+  var HEAVY_ROUTE_FIRST = 3;
+  var HEAVY_ROUTE_EVERY = 3;
 
   var VORONOI = [
     'vec3 hash(vec3 p){',
@@ -216,17 +217,144 @@
     this._heavyLoadToken = 0;
     this._heavyFailedKeys = {};
     this._heavyRouteActive = false;
+    this._heavyLoadingKey = null;
+    this._heavyPaused = false;
+    this._heavyPausedUntil = 0;
+    this._fpsFrames = 0;
+    this._fpsAccum = 0;
+    this._fpsAvg = 60;
 
     this._buildScene();
     this._preloadAllProps();
+    this._maybePreloadNextHeavy();
 
     var self = this;
     window.addEventListener('resize', function () { self._resize(); });
+
+    // --- After Midnight: floating pool-message overlay --------------------
+    // Keep this DOM layer outside #city-mount's z-index:1 stacking context so
+    // it can sit above the road/effects while remaining below the main UI.
+    if (!document.getElementById('aquacity-pooltext-style')) {
+      var poolTextStyle = document.createElement('style');
+      poolTextStyle.id = 'aquacity-pooltext-style';
+      poolTextStyle.textContent =
+        '.aquacity-pooltext{' +
+          'position:fixed;inset:0;z-index:26;pointer-events:none;' +
+          'opacity:0;visibility:hidden;' +
+        '}' +
+        '.aquacity-pooltext-line{' +
+          'position:absolute;left:50%;max-width:min(88vw,760px);' +
+          'text-align:center;white-space:normal;pointer-events:none;' +
+          'font-family:"Space Mono",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
+          'font-weight:400;font-size:clamp(14px,1.15vw,18px);' +
+          'letter-spacing:0.015em;line-height:1.45;' +
+          'color:rgba(232,249,255,0.94);' +
+          'text-shadow:0 1px 2px rgba(0,28,42,0.34),' +
+                      '0 0 5px rgba(242,253,255,0.26),' +
+                      '0 0 17px rgba(151,226,255,0.22);' +
+          'opacity:0;filter:blur(6px);' +
+          'will-change:opacity,filter,transform;' +
+          'backface-visibility:hidden;' +
+        '}' +
+        '@media (max-width:700px){' +
+          '.aquacity-pooltext-line{' +
+            'max-width:86vw;font-size:clamp(13px,3.4vw,16px);line-height:1.4;' +
+          '}' +
+        '}';
+      document.head.appendChild(poolTextStyle);
+    }
+
+    var POOL_TEXT_LINES = [
+      { text: 'I like your voice', delay: 0.8, top: '52vh' },
+      { text: 'I know I change so fast _moodswings crazy', delay: 2.7, top: '56vh' },
+      { text: 'But you too..ㅠㅠㅠ', delay: 4.9, top: '60vh' },
+      { text: 'When we date?', delay: 7.2, top: '64vh', finalLine: true }
+    ];
+
+    this._poolTextRoot = document.createElement('div');
+    this._poolTextRoot.className = 'aquacity-pooltext';
+    this._poolTextRoot.setAttribute('aria-hidden', 'true');
+    // IMPORTANT: append to body, not container (#city-mount has z-index:1).
+    document.body.appendChild(this._poolTextRoot);
+
+    this._poolTextElapsed = 0;
+    this._poolTextActive = false;
+    this._poolTextLines = POOL_TEXT_LINES.map(function (cfg, index) {
+      var el = document.createElement('div');
+      el.className = 'aquacity-pooltext-line';
+      el.style.top = cfg.top;
+      el.textContent = cfg.text;
+      self._poolTextRoot.appendChild(el);
+      return {
+        el: el,
+        delay: cfg.delay,
+        duration: 1.65,
+        finalLine: !!cfg.finalLine,
+        phaseY: 0.65 + index * 1.43,
+        phaseX: 1.25 + index * 1.17,
+        shimmerPhase: 0.35 + index * 1.61
+      };
+    });
+
+    this._resetPoolText = function () {
+      self._poolTextElapsed = 0;
+      self._poolTextLines.forEach(function (line) {
+        line.el.style.opacity = '0';
+        line.el.style.filter = 'blur(6px)';
+        line.el.style.transform =
+          'translate(-50%,0) translate3d(0px,7px,0)';
+      });
+    };
+
+    this._updatePoolText = function () {
+      var t = self._poolTextElapsed;
+
+      self._poolTextLines.forEach(function (line) {
+        var raw = (t - line.delay) / line.duration;
+
+        if (raw <= 0) {
+          line.el.style.opacity = '0';
+          return;
+        }
+
+        var p = Math.min(raw, 1);
+        // Smoothstep-like cinematic settle: soft start and soft finish.
+        var eased = p * p * (3 - 2 * p);
+
+        var blur = 6.0 * (1 - eased) + 0.35 * eased;
+        var settleY = 7.0 * (1 - eased);
+
+        // Independent, extremely restrained water drift.
+        var floatY = Math.sin(t * 0.58 + line.phaseY) * 2.05 * eased;
+        var floatX = Math.sin(t * 0.43 + line.phaseX) * 0.85 * eased;
+
+        // Caustic-like shimmer: intentionally tiny (about +/-4%).
+        var shimmer = 1 + Math.sin(t * 0.52 + line.shimmerPhase) * 0.04 * eased;
+        var baseOpacity = line.finalLine ? 0.95 : 0.91;
+        var opacity = Math.max(0, Math.min(1, eased * shimmer)) * baseOpacity;
+
+        line.el.style.opacity = opacity.toFixed(3);
+        line.el.style.filter = 'blur(' + blur.toFixed(2) + 'px)';
+        line.el.style.transform =
+          'translate(-50%,0) translate3d(' +
+          floatX.toFixed(2) + 'px,' +
+          (settleY + floatY).toFixed(2) + 'px,0)';
+      });
+    };
   }
 
   AquaCityBg.prototype._buildScene = function () {
     var self = this;
     var tileMat = makeMat({ color: 0xffffff, roughness: 0.0 });
+    var leftWallMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      side: THREE.DoubleSide,
+      fog: false,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -8,
+      polygonOffsetUnits: -8
+    });
 
     var texLoader = new THREE.TextureLoader();
     [
@@ -248,20 +376,24 @@
       group.position.z = z;
       self._sc.add(group);
 
-      function segFloor(x, y, localZ, rx, ry, sx, sy) {
+      function segFloor(x, y, localZ, rx, ry, sx, sy, mat) {
         var geo = new THREE.PlaneGeometry(sx, sy, 1, 1);
         addUv2(geo);
-        var mesh = new THREE.Mesh(geo, tileMat);
+        var mesh = new THREE.Mesh(geo, mat || tileMat);
         mesh.position.set(x, y, localZ);
         mesh.rotation.x = rx || 0;
         mesh.rotation.y = ry || 0;
         mesh.castShadow = false;
         mesh.receiveShadow = false;
+        if (mat === leftWallMat) {
+          mesh.position.x += 0.08;
+          mesh.renderOrder = 30;
+        }
         group.add(mesh);
       }
 
       segFloor(0, 0, 0, -Math.PI / 2, 0, 11, 8);
-      segFloor(-4.35, 3.05, 0, 0, Math.PI / 2, 8, 6.1);
+      segFloor(-4.35, 3.05, 0, 0, Math.PI / 2, 8, 6.1, leftWallMat);
       segFloor(4.35, 3.05, 0, 0, -Math.PI / 2, 8, 6.1);
 
       self._poolSegments.push({
@@ -540,11 +672,16 @@
   AquaCityBg.prototype._pickPoolPropPairFiles = function () {
     var lightCount = POOL_PROP_FILES.length;
     var lightStart = this._propRouteIndex % lightCount;
-    if (HEAVY_ROUTE_EVERY > 0 &&
-        this._propRouteIndex > 0 &&
-        this._propRouteIndex % HEAVY_ROUTE_EVERY === 0 &&
-        HEAVY_PROP_FILES.length) {
-      var hFile = HEAVY_PROP_FILES[(this._propRouteIndex / HEAVY_ROUTE_EVERY - 1) % HEAVY_PROP_FILES.length];
+    if (this._heavyPaused && this._propRouteIndex >= this._heavyPausedUntil) {
+      this._heavyPaused = false;
+    }
+    var idx = this._propRouteIndex;
+    if (!this._heavyPaused &&
+        HEAVY_PROP_FILES.length &&
+        idx >= HEAVY_ROUTE_FIRST &&
+        (idx === HEAVY_ROUTE_FIRST || (idx - HEAVY_ROUTE_FIRST) % HEAVY_ROUTE_EVERY === 0)) {
+      var hCount = (idx - HEAVY_ROUTE_FIRST) / HEAVY_ROUTE_EVERY;
+      var hFile = HEAVY_PROP_FILES[hCount % HEAVY_PROP_FILES.length];
       var hKey = HEAVY_PROP_BASE + hFile;
       if (this._poolPropCache[hKey]) {
         return [propSpec(hFile, true)];
@@ -655,18 +792,36 @@
     if (!HEAVY_ROUTE_EVERY || !HEAVY_PROP_FILES.length) return;
     if (typeof THREE.GLTFLoader === 'undefined') return;
     var nextIndex = this._propRouteIndex + 1;
-    if (nextIndex % HEAVY_ROUTE_EVERY !== 0) return;
-    var hFile = HEAVY_PROP_FILES[(nextIndex / HEAVY_ROUTE_EVERY - 1) % HEAVY_PROP_FILES.length];
+    var nextHeavy;
+    if (nextIndex <= HEAVY_ROUTE_FIRST) {
+      nextHeavy = HEAVY_ROUTE_FIRST;
+    } else {
+      var off = nextIndex - HEAVY_ROUTE_FIRST;
+      var rem = off % HEAVY_ROUTE_EVERY;
+      nextHeavy = rem === 0 ? nextIndex : nextIndex + (HEAVY_ROUTE_EVERY - rem);
+    }
+    if (nextHeavy - nextIndex > 2) return;
+    var hCount = (nextHeavy - HEAVY_ROUTE_FIRST) / HEAVY_ROUTE_EVERY;
+    var hFile = HEAVY_PROP_FILES[hCount % HEAVY_PROP_FILES.length];
     var hKey = HEAVY_PROP_BASE + hFile;
     if (this._poolPropCache[hKey] || this._heavyFailedKeys[hKey]) return;
+    if (this._heavyLoadingKey === hKey) return;
+    this._heavyLoadingKey = hKey;
     var self = this;
     var token = ++this._heavyLoadToken;
     new THREE.GLTFLoader().load(
       HEAVY_PROP_BASE + encodeURIComponent(hFile),
       function (gltf) {
-        if (token !== self._heavyLoadToken) return;
+        if (token !== self._heavyLoadToken) {
+          if (self._heavyLoadingKey === hKey) self._heavyLoadingKey = null;
+          return;
+        }
         var root = gltf.scene || gltf.scenes[0];
-        if (!root) { self._heavyFailedKeys[hKey] = true; return; }
+        if (!root) {
+          self._heavyLoadingKey = null;
+          self._heavyFailedKeys[hKey] = true;
+          return;
+        }
         root.traverse(function (node) {
           if (!node.isMesh) return;
           node.castShadow = false;
@@ -685,11 +840,15 @@
         var normalized = new THREE.Group();
         root.position.sub(center);
         normalized.add(root);
+        self._heavyLoadingKey = null;
         self._poolPropCache[hKey] = { file: hFile, heavy: true, root: normalized, maxDim: maxDim };
         self._warmupGPU(normalized);
       },
       undefined,
-      function () { self._heavyFailedKeys[hKey] = true; }
+      function () {
+        if (self._heavyLoadingKey === hKey) self._heavyLoadingKey = null;
+        self._heavyFailedKeys[hKey] = true;
+      }
     );
   };
 
@@ -709,6 +868,12 @@
   AquaCityBg.prototype.show = function () {
     this._active = true;
     this._canvas.style.opacity = '1';
+
+    // Restart the four-line pool-message sequence on every Chapter 4 entry.
+    this._poolTextActive = true;
+    this._poolTextRoot.style.visibility = 'visible';
+    this._poolTextRoot.style.opacity = '1';
+    this._resetPoolText();
   };
 
   AquaCityBg.prototype.hide = function () {
@@ -717,6 +882,8 @@
     this._propLoading = false;
     this._propLoadToken += 1;
     this._heavyLoadToken += 1;
+    this._heavyLoadingKey = null;
+    this._heavyPaused = false;
     var wasHeavy = this._heavyRouteActive;
     var hEntry = wasHeavy && this._propRoutePair && this._propRoutePair[0];
     this._heavyRouteActive = false;
@@ -730,6 +897,15 @@
     }
     this._propRouteState = 'intro';
     this._canvas.style.opacity = '0';
+
+    // Hide/reset only the new pool-message layer; preserve all cleanup above.
+    this._poolTextActive = false;
+    this._poolTextElapsed = 0;
+    this._poolTextRoot.style.opacity = '0';
+    this._poolTextRoot.style.visibility = 'hidden';
+    this._poolTextLines.forEach(function (line) {
+      line.el.style.opacity = '0';
+    });
   };
 
   AquaCityBg.prototype.setIntensity = function (v) {
@@ -740,6 +916,24 @@
     this._time += dt;
     this._iv += (this._target - this._iv) * Math.min(dt * (this._target > this._iv ? 1.6 : 0.85), 1);
     if (!this._active && this._iv < 0.01) return;
+
+    // Dedicated text timer: no setTimeout, no extra rAF, and no reset of _time.
+    if (this._active && this._poolTextActive) {
+      this._poolTextElapsed += dt;
+      this._updatePoolText();
+    }
+
+    this._fpsFrames++;
+    this._fpsAccum += dt;
+    if (this._fpsAccum >= 2.0) {
+      this._fpsAvg = this._fpsFrames / this._fpsAccum;
+      this._fpsFrames = 0;
+      this._fpsAccum = 0;
+      if (this._fpsAvg < 42 && !this._heavyPaused) {
+        this._heavyPaused = true;
+        this._heavyPausedUntil = this._propRouteIndex + 5;
+      }
+    }
 
     var t = this._time;
     var cx = Math.sin(t * 0.18) * (0.35 + this._iv * 0.22);
