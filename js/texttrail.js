@@ -218,15 +218,19 @@ class TextTrail {
     ctx.clearRect(0, 0, sz, sz);
 
     /* Auto-scale font to fill ~80% of canvas width */
+    const lines = String(text).split('\n');
     ctx.font = `${wt} 200px ${fam}`;
-    const tw   = ctx.measureText(text).width;
+    const tw   = Math.max(...lines.map(line => ctx.measureText(line).width));
     const scale = (sz * 0.80) / tw;
     const fs    = Math.min(Math.floor(200 * scale), sz * 0.38);
     ctx.font         = `${wt} ${fs}px ${fam}`;
     ctx.fillStyle    = '#ffffff';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, sz / 2, sz / 2);
+    const lineHeight = fs * 1.05;
+    lines.forEach((line, i) => {
+      ctx.fillText(line, sz / 2, sz / 2 + (i - (lines.length - 1) / 2) * lineHeight);
+    });
 
     const tex = new THREE.CanvasTexture(this._texCanvas);
     this._textMat.uniforms.sampler.value = tex;
