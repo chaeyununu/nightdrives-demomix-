@@ -1029,7 +1029,7 @@
               delete this._poolPropCache[hKey];
             }
           }
-          this._propRouteState = 'empty';
+          this._propRouteState = 'empty'; 
           this._propEmptyRemaining = PROP_ROUTE_EMPTY_DISTANCE;
           this._maybePreloadNextHeavy();
         }
