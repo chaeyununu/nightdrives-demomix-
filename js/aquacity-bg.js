@@ -235,6 +235,15 @@
   AquaCityBg.prototype._buildScene = function () {
     var self = this;
     var tileMat = makeMat({ color: 0xffffff, roughness: 0.0 });
+    var leftWallMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      side: THREE.DoubleSide,
+      fog: false,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -8,
+      polygonOffsetUnits: -8
+    });
 
     var texLoader = new THREE.TextureLoader();
     [
@@ -256,20 +265,24 @@
       group.position.z = z;
       self._sc.add(group);
 
-      function segFloor(x, y, localZ, rx, ry, sx, sy) {
+      function segFloor(x, y, localZ, rx, ry, sx, sy, mat) {
         var geo = new THREE.PlaneGeometry(sx, sy, 1, 1);
         addUv2(geo);
-        var mesh = new THREE.Mesh(geo, tileMat);
+        var mesh = new THREE.Mesh(geo, mat || tileMat);
         mesh.position.set(x, y, localZ);
         mesh.rotation.x = rx || 0;
         mesh.rotation.y = ry || 0;
         mesh.castShadow = false;
         mesh.receiveShadow = false;
+        if (mat === leftWallMat) {
+          mesh.position.x += 0.08;
+          mesh.renderOrder = 30;
+        }
         group.add(mesh);
       }
 
       segFloor(0, 0, 0, -Math.PI / 2, 0, 11, 8);
-      segFloor(-4.35, 3.05, 0, 0, Math.PI / 2, 8, 6.1);
+      segFloor(-4.35, 3.05, 0, 0, Math.PI / 2, 8, 6.1, leftWallMat);
       segFloor(4.35, 3.05, 0, 0, -Math.PI / 2, 8, 6.1);
 
       self._poolSegments.push({
