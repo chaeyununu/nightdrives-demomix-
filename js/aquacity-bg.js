@@ -241,14 +241,10 @@
   AquaCityBg.prototype._buildScene = function () {
     var self = this;
     var tileMat = makeMat({ color: 0xffffff, roughness: 0.0 });
-    var leftWallMat = new THREE.MeshBasicMaterial({
+    var leftWallMat = makeMat({
       color: 0xffffff,
-      side: THREE.DoubleSide,
-      fog: false,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -8,
-      polygonOffsetUnits: -8
+      roughness: 0.0,
+      side: THREE.DoubleSide
     });
 
     var texLoader = new THREE.TextureLoader();
@@ -261,8 +257,10 @@
       texLoader.load(ASSET_BASE + item[1], function (tex) {
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         tex.repeat.set(SIZE / 4, SIZE / 4);
-        tileMat[item[0]] = tex;
-        tileMat.needsUpdate = true;
+        [tileMat, leftWallMat].forEach(function (mat) {
+          mat[item[0]] = tex;
+          mat.needsUpdate = true;
+        });
       });
     });
 
@@ -282,7 +280,6 @@
         mesh.receiveShadow = false;
         if (mat === leftWallMat) {
           mesh.userData.leftWallBaseX = x;
-          mesh.renderOrder = 30;
           self._leftWallMeshes.push(mesh);
         }
         group.add(mesh);
